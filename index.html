@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            outline: none;
+        }
+        input[type="text"]:focus, input[type="password"]:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #3b82f6;
+            color: white;
+            border-radius: 0.5rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        #weather-display {
+            display: none;
+            text-align: left;
+            margin-top: 1.5rem;
+        }
+        .weather-card {
+            background-color: #f8fafc;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #bfdbfe;
+        }
+        .weather-card h2 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 0.5rem;
+        }
+        .weather-card p {
+            font-size: 1.125rem;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+        .weather-card .temp {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #1d4ed8;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .weather-card .description {
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: #4b5563;
+            text-transform: capitalize;
+            margin-bottom: 1rem;
+        }
+        .error-message {
+            color: #ef4444;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+        .loading-indicator {
+            display: none;
+            margin-top: 1rem;
+            font-size: 1.125rem;
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="login-form">
+            <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Welcome!</h1>
+            <p class="text-gray-600 mb-6">Enter any username and password to proceed (mock login).</p>
+            <input type="text" id="username" placeholder="Username" class="focus:border-blue-500 focus:ring-blue-500/50">
+            <input type="password" id="password" placeholder="Password" class="focus:border-blue-500 focus:ring-blue-500/50">
+            <button id="login-button">Login</button>
+            <p id="login-error" class="error-message"></p>
+        </div>
+
+        <div id="weather-display">
+            <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Weather Forecast</h1>
+            <p class="text-gray-600 mb-6">Enter a city to get the current weather.</p>
+            <input type="text" id="city-input" placeholder="Enter city name (e.g., London)" class="focus:border-blue-500 focus:ring-blue-500/50">
+            <button id="get-weather-button">Get Weather</button>
+            <p id="weather-error" class="error-message"></p>
+            <p id="loading-indicator" class="loading-indicator">Fetching weather...</p>
+
+            <div id="weather-result" class="weather-card mt-6 hidden">
+                <h2 id="city-name"></h2>
+                <p id="country-name" class="text-gray-500"></p>
+                <div class="temp" id="temperature"></div>
+                <p class="description" id="weather-description"></p>
+                <p>Feels like: <span id="feels-like"></span>°C</p>
+                <p>Humidity: <span id="humidity"></span>%</p>
+                <p>Wind Speed: <span id="wind-speed"></span> m/s</p>
+            </div>
+            <button id="logout-button" class="mt-4 bg-red-500 hover:bg-red-600">Logout</button>
+        </div>
+    </div>
+
+    <script>
+        const API_GATEWAY_URL = 'YOUR_API_GATEWAY_URL_HERE';
+
+        const loginForm = document.getElementById('login-form');
+        const weatherDisplay = document.getElementById('weather-display');
+        const loginButton = document.getElementById('login-button');
+        const logoutButton = document.getElementById('logout-button');
+        const cityInput = document.getElementById('city-input');
+        const getWeatherButton = document.getElementById('get-weather-button');
+        const weatherResult = document.getElementById('weather-result');
+        const loginError = document.getElementById('login-error');
+        const weatherError = document.getElementById('weather-error');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        const cityName = document.getElementById('city-name');
+        const countryName = document.getElementById('country-name');
+        const temperature = document.getElementById('temperature');
+        const weatherDescription = document.getElementById('weather-description');
+        const feelsLike = document.getElementById('feels-like');
+        const humidity = document.getElementById('humidity');
+        const windSpeed = document.getElementById('wind-speed');
+
+        let currentUserId = null;
+
+        function showSection(sectionId) {
+            loginForm.style.display = 'none';
+            weatherDisplay.style.display = 'none';
+            if (sectionId === 'login') {
+                loginForm.style.display = 'block';
+            } else if (sectionId === 'weather') {
+                weatherDisplay.style.display = 'block';
+            }
+        }
+
+        loginButton.addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (username && password) {
+                currentUserId = username.toLowerCase().replace(/\s/g, '-');
+                loginError.textContent = '';
+                showSection('weather');
+            } else {
+                loginError.textContent = 'Please enter both username and password.';
+            }
+        });
+
+        logoutButton.addEventListener('click', () => {
+            currentUserId = null;
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            weatherResult.classList.add('hidden');
+            weatherError.textContent = '';
+            showSection('login');
+        });
+
+        getWeatherButton.addEventListener('click', async () => {
+            const city = cityInput.value.trim();
+            if (!city) {
+                weatherError.textContent = 'Please enter a city name.';
+                weatherResult.classList.add('hidden');
+                return;
+            }
+
+            weatherError.textContent = '';
+            loadingIndicator.style.display = 'block';
+            weatherResult.classList.add('hidden');
+
+            try {
+                const response = await fetch(API_GATEWAY_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ city: city, userId: currentUserId }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    cityName.textContent = `${data.city}, ${data.country}`;
+                    temperature.textContent = `${data.temperature}°C`;
+                    weatherDescription.textContent = data.description;
+                    feelsLike.textContent = data.feels_like;
+                    humidity.textContent = data.humidity;
+                    windSpeed.textContent = data.wind_speed;
+                    weatherResult.classList.remove('hidden');
+                } else {
+                    weatherError.textContent = data.error || 'An unknown error occurred.';
+                    if (data.details) {
+                        console.error('API Error Details:', data.details);
+                    }
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                weatherError.textContent = 'Could not connect to the weather service. Please try again later.';
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        });
+
+        showSection('login');
+    </script>
+</body>
+</html>

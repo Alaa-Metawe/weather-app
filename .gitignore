@@ -1,0 +1,19 @@
+# Terraform
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+terraform.tfvars # IMPORTANT: Do NOT commit your terraform.tfvars file!
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+backend_lambda.zip # Generated artifact
+
+# Node (if you use npm later)
+node_modules/
+.env

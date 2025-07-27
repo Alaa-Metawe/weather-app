@@ -1,0 +1,25 @@
+# variables.tf
+
+variable "aws_region" {
+  description = "The AWS region to deploy resources in."
+  type        = string
+  default     = "us-east-1" # Change to your preferred region
+}
+
+variable "rapidapi_key" {
+  description = "Your RapidAPI Key for the weather API."
+  type        = string
+  sensitive   = true # Mark as sensitive to prevent logging its value
+}
+
+variable "rapidapi_host" {
+  description = "The X-RapidAPI-Host header value for your chosen weather API."
+  type        = string
+  sensitive   = true
+}
+
+variable "weather_api_url" {
+  description = "The full URL for the weather API endpoint."
+  type        = string
+  sensitive   = true
+}
