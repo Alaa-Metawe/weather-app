@@ -1,0 +1,99 @@
+name: Deploy Weather App to AWS
+
+on:
+  push:
+    branches:
+      - main # Trigger on pushes to the main branch
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  API_GATEWAY_PATH_PART: "weather" # The path part defined in terraform/main.tf (e.g., /weather)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production # Optional: use environments for better control
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9' # Or your desired Python version
+
+      - name: Install Python dependencies and package Lambda
+        run: |
+          cd backend
+          pip install -r requirements.txt -t . # Install dependencies into the current directory
+          zip -r ../backend_lambda.zip ./* # Zip everything in backend dir, including dependencies
+          cd .. # Go back to root
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0 # Use a specific version, check latest compatible
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: ./terraform # Run terraform commands from the terraform directory
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -input=false -var="rapidapi_key=${{ secrets.RAPIDAPI_KEY }}" -var="rapidapi_host=${{ secrets.RAPIDAPI_HOST }}" -var="weather_api_url=${{ secrets.WEATHER_API_URL }}" -var="aws_region=${{ env.AWS_REGION }}"
+        working-directory: ./terraform
+        # You can add -out=tfplan to save the plan and apply it in the next step,
+        # but for simplicity, we'll run apply directly.
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve -input=false -var="rapidapi_key=${{ secrets.RAPIDAPI_KEY }}" -var="rapidapi_host=${{ secrets.RAPIDAPI_HOST }}" -var="weather_api_url=${{ secrets.WEATHER_API_URL }}" -var="aws_region=${{ env.AWS_REGION }}"
+        working-directory: ./terraform
+
+      - name: Get API Gateway URL from Terraform output
+        id: get_api_url
+        run: |
+          API_URL=$(terraform output -raw api_gateway_url)
+          echo "API_GATEWAY_FULL_URL=$API_URL" >> $GITHUB_ENV
+        working-directory: ./terraform
+
+      - name: Get S3 Website URL from Terraform output
+        id: get_s3_url
+        run: |
+          S3_URL=$(terraform output -raw frontend_website_url)
+          echo "S3_WEBSITE_URL=$S3_URL" >> $GITHUB_ENV
+        working-directory: ./terraform
+
+      - name: Update Frontend index.html with API Gateway URL
+        run: |
+          # Replace the placeholder in index.html with the actual API Gateway URL
+          sed -i "s|YOUR_API_GATEWAY_URL_HERE|${{ env.API_GATEWAY_FULL_URL }}|g" frontend/index.html
+
+      - name: Deploy Frontend to S3
+        run: |
+          aws s3 sync frontend/ s3://$(terraform output -raw frontend_bucket_id)/ --delete --acl public-read
+        working-directory: ./terraform # Run from terraform dir to access outputs
+
+      - name: Invalidate CloudFront Cache (if CloudFront is used later)
+        # This step is commented out as CloudFront is an enhancement.
+        # If you add CloudFront, uncomment this and ensure you have its ID.
+        # run: |
+        #   CLOUDFRONT_DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id) # You'd need to add this output
+        #   aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+        # env:
+        #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        #   AWS_REGION: ${{ env.AWS_REGION }}
+        # working-directory: ./terraform
+
+      - name: Output Frontend URL
+        run: echo "Frontend Website URL: ${{ env.S3_WEBSITE_URL }}"
